@@ -1,11 +1,9 @@
-"""Распознавание и синонимическое обезличивание российских ПДн.
+"""Распознавание и синонимическое обезличивание ПДн, вариант № 15.
 
-Оба варианта задания: variant='odd' (нечётный), 'even' (чётный).
-Без обязательных внешних зависимостей; pymorphy3 можно подключить дополнительно.
+Десять типов персональных данных нечётного варианта. Стандартная библиотека Python.
 """
 from __future__ import annotations
 import dataclasses
-import ipaddress
 import json
 import random
 import re
@@ -14,8 +12,6 @@ import string
 
 COMMON = ('SURNAME', 'NAME', 'INN', 'PASSPORT', 'CARD')
 ODD = COMMON + ('SNILS', 'URL', 'PHONE', 'MARRIAGE_CERT', 'CADASTRAL')
-EVEN = COMMON + ('OGRNIP', 'IP', 'EMAIL', 'BIRTH_CERT', 'KLADR')
-ALL = tuple(dict.fromkeys(ODD + EVEN))
 TOKEN_RE = re.compile(r'\w+|[^\w\s]', re.UNICODE)
 FLAGS = re.IGNORECASE | re.UNICODE
 
@@ -92,15 +88,6 @@ def snils_build(rng):
     return f'{base[:3]}-{base[3:6]}-{base[6:9]} {snils_control(base):02d}'
 
 
-def ogrnip_ok(value: str) -> bool:
-    return bool(re.fullmatch(r'\d{15}',value)) and int(value[-1])==int(value[:14])%13%10
-
-
-def ogrnip_build(prefix: str, rng):
-    a=prefix+''.join(str(rng.randrange(10)) for _ in range(14-len(prefix)))
-    return a+str(int(a)%13%10)
-
-
 def token_spans(text: str):
     return [(m.group(),m.start(),m.end()) for m in TOKEN_RE.finditer(text)]
 
@@ -168,56 +155,42 @@ PERSON_PATTERNS=[
 ]
 
 PATTERNS={
- 'EMAIL': re.compile(r'(?<![\w.+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w-])', FLAGS),
  'URL': re.compile(r'(?<![\w])https?://[A-Z0-9][A-Z0-9.-]+\.[A-Z]{2,}(?:/[\w~!$&\'()*+,;=:@%/?#.-]*)?',FLAGS),
- 'IP': re.compile(r'(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?!(?:\d|\.\d))'),
  'PHONE': re.compile(r'(?<!\d)(?:\+7|8)[\s-]*\(?\d{3}\)?[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}(?!\d)'),
  'SNILS': re.compile(r'(?<!\d)\d{3}[- ]\d{3}[- ]\d{3}[ -]\d{2}(?!\d)'),
  'CADASTRAL': re.compile(r'(?<!\d)\d{2}:\d{2}:\d{6,7}:\d{1,6}(?!\d)'),
  'PASSPORT': re.compile(r'(?<!\d)\d{2}[\s-]?\d{2}[\s-]?\d{6}(?!\d)'),
  'CARD': re.compile(r'(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)'),
  'INN': re.compile(r'(?<!\d)(?:\d{12}|\d{10})(?!\d)'),
- 'OGRNIP': re.compile(r'(?<!\d)\d{15}(?!\d)'),
- 'KLADR': re.compile(r'(?<!\d)\d{13}(?!\d)'),
  'CERT': re.compile(r'(?<!\w)[IVX]{1,4}[-–][А-ЯЁ]{2}\s*(?:№\s*)?\d{6}(?!\d)',FLAGS),
 }
-CERT_CONTEXT={'MARRIAGE_CERT':r'брак[аеиуом]?|о\s+заключении\s+брака|свидетельств[оа]\s+о\s+браке',
-              'BIRTH_CERT':r'рождени[яеи]|свидетельств[оа]\s+о\s+рождении'}
+CERT_CONTEXT=r'брак[аеиуом]?|о\s+заключении\s+брака|свидетельств[оа]\s+о\s+браке'
 
 
 def _valid(label: str, val: str, context: str) -> bool:
-    d=re.sub(r'\D','',val)
     if label=='INN': return inn_ok(val)
     if label=='CARD': return luhn_ok(val)
     if label=='SNILS': return snils_ok(val)
-    if label=='OGRNIP': return ogrnip_ok(val)
-    if label=='IP':
-        try: ipaddress.IPv4Address(val); return True
-        except ipaddress.AddressValueError: return False
-    if label=='KLADR': return bool(re.search(r'(?i)кла[дd]р|код\s+кладр',context))
     if label=='PASSPORT': return bool(re.search(r'паспорт',context,re.I))
     if label=='CADASTRAL': return bool(re.search(r'кадастр',context,re.I))
-    if label=='INN': return inn_ok(val)
-    if label=='CERT': return any(re.search(regex,context,re.I) for regex in CERT_CONTEXT.values())
+    if label=='CERT': return bool(re.search(CERT_CONTEXT,context,re.I))
     return True
 
 
-def recognize(text: str, variant: str='odd') -> list[Entity]:
-    if variant not in ('odd','even','all'): raise ValueError('variant: odd, even или all')
-    allowed=set(ODD if variant=='odd' else EVEN if variant=='even' else ALL)
+def recognize(text: str) -> list[Entity]:
+    allowed=set(ODD)
     found=[]
     occupied=[]
     def add(label,start,end):
         if label not in allowed or any(start < b and end > a for a,b in occupied): return False
         found.append(Entity(label,start,end,text[start:end])); occupied.append((start,end)); return True
     # Приоритет: структурированные выражения, затем имена. Это исключает пересечение классов.
-    for label in ('EMAIL','URL','IP','PHONE','SNILS','CADASTRAL','CERT','PASSPORT','CARD','INN','OGRNIP','KLADR'):
+    for label in ('URL','PHONE','SNILS','CADASTRAL','CERT','PASSPORT','CARD','INN'):
         for m in PATTERNS[label].finditer(text):
             ctx=text[max(0,m.start()-58):m.start()].split('\n')[-1]
             actual=label
             if label=='CERT':
-                if re.search(CERT_CONTEXT['MARRIAGE_CERT'],ctx,re.I): actual='MARRIAGE_CERT'
-                elif re.search(CERT_CONTEXT['BIRTH_CERT'],ctx,re.I): actual='BIRTH_CERT'
+                if re.search(CERT_CONTEXT,ctx,re.I): actual='MARRIAGE_CERT'
                 else: continue
             if actual not in allowed or not _valid(label,m.group(),ctx): continue
             end=m.end()
@@ -295,18 +268,11 @@ def _replacement(ent: Entity, rng, gender: str):
         ds=re.sub(r'\D','',s); new=ds[:4]+''.join(str(rng.randrange(10)) for _ in range(6)); it=iter(new)
         return ''.join(next(it) if c.isdigit() else c for c in s)
     if label=='SNILS': return snils_build(rng)
-    if label=='OGRNIP': return ogrnip_build(s[:5],rng)
     if label=='PHONE':
         digits=re.sub(r'\D','',s); new=digits[:4]+''.join(str(rng.randrange(10)) for _ in range(7)); it=iter(new)
         return ''.join(next(it) if c.isdigit() else c for c in s)
     if label=='CADASTRAL':
         parts=s.split(':'); return ':'.join(parts[:3]+[str(rng.randrange(1,10**len(parts[3]))).zfill(len(parts[3]))])
-    if label=='KLADR': return s[:8]+''.join(str(rng.randrange(10)) for _ in range(5))
-    if label=='IP':
-        arr=s.split('.'); return '.'.join(arr[:2]+[str(rng.randrange(1,254)),str(rng.randrange(1,254))])
-    if label=='EMAIL':
-        local,domain=s.rsplit('@',1)
-        return _letters(rng,max(6,min(12,len(local))))+'@'+domain
     if label=='URL':
         m=re.match(r'(https?://)([^/]+)(.*)',s,re.I)
         if not m:return s
@@ -314,7 +280,7 @@ def _replacement(ent: Entity, rng, gender: str):
         if len(hostname)>=3: hostname[-3]=_letters(rng,7)
         else:hostname[0]=_letters(rng,7)
         return m.group(1)+'.'.join(hostname)+m.group(3)
-    if label in ('MARRIAGE_CERT','BIRTH_CERT'):
+    if label=='MARRIAGE_CERT':
         return re.sub(r'\d{6}$',''.join(str(rng.randrange(10)) for _ in range(6)),s)
     return s
 
@@ -325,15 +291,14 @@ class Anonymizer:
     Повторное anonymize() того же текста идемпотентно внутри сессии;
     новая сессия генерирует новые псевдонимы, включая одинаковые исходники.
     """
-    def __init__(self, variant='odd', seed: int|None=None):
-        self.variant=variant
+    def __init__(self, seed: int|None=None):
         self.rng=random.Random(seed) if seed is not None else secrets.SystemRandom()
         self.mapping={}
         self.generated=set()
         self.seed=seed
 
     def anonymize(self, text: str):
-        ents=recognize(text,self.variant)
+        ents=recognize(text)
         result=text
         for e in reversed(ents):
             gender=_pick_gender(text,e,ents) if e.label in ('NAME','SURNAME') else ''
@@ -356,9 +321,9 @@ class Anonymizer:
         return result,[[e.label,e.start,e.end] for e in ents]
 
 
-def anon(text:str,variant='odd',seed=None):
+def anon(text:str,seed=None):
     """API: (обезличенный текст, список [label,start,end] с исходными смещениями)."""
-    return Anonymizer(variant=variant,seed=seed).anonymize(text)
+    return Anonymizer(seed=seed).anonymize(text)
 
 
 def mask(text:str,entities:list[Entity]):
@@ -375,7 +340,6 @@ if __name__=='__main__':
     import argparse
     p=argparse.ArgumentParser(description='Синонимическое обезличивание ПДн')
     p.add_argument('text', nargs='?', default='Гражданин Иванов Пётр, ИНН 7701291417.')
-    p.add_argument('--variant',choices=('odd','even','all'),default='odd')
     p.add_argument('--seed',type=int)
     args=p.parse_args()
-    print(json.dumps(anon(args.text,args.variant,args.seed),ensure_ascii=False,indent=2))
+    print(json.dumps(anon(args.text,args.seed),ensure_ascii=False,indent=2))

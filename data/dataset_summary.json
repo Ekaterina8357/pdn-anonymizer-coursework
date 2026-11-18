@@ -1,27 +1,19 @@
 {
-  "texts": 300,
-  "texts_by_variant": {
-    "odd": 150,
-    "even": 150
-  },
+  "variant": 15,
+  "texts": 150,
   "entities_by_label": {
-    "BIRTH_CERT": 93,
     "CADASTRAL": 93,
-    "CARD": 188,
-    "EMAIL": 94,
-    "INN": 188,
-    "IP": 94,
-    "KLADR": 93,
+    "CARD": 94,
+    "INN": 94,
     "MARRIAGE_CERT": 93,
-    "NAME": 300,
-    "OGRNIP": 94,
-    "PASSPORT": 188,
+    "NAME": 150,
+    "PASSPORT": 94,
     "PHONE": 94,
     "SNILS": 94,
-    "SURNAME": 300,
+    "SURNAME": 150,
     "URL": 94
   },
-  "total_entities": 2100,
+  "total_entities": 1050,
   "source": "самостоятельно составленный синтетический корпус",
   "seed": 20261020,
   "type": "test-only (правила не обучаются на тестовой выборке)"

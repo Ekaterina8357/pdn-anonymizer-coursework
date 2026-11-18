@@ -4,7 +4,7 @@ import random
 import json
 from pathlib import Path
 from pdn import (Anonymizer,anon,recognize,bio_tags,Entity,inn_build,inn_ok,luhn_ok,
-                 luhn_finish,snils_build,snils_ok,ogrnip_build,ogrnip_ok,mask,mask_all_text)
+                 luhn_finish,snils_build,snils_ok,mask,mask_all_text)
 
 class TestPDN(unittest.TestCase):
     def test_inn10_and12_checksums(self):
@@ -15,7 +15,7 @@ class TestPDN(unittest.TestCase):
     def test_inn_control_and_prefix_preserved(self):
         for n in (10,12):
             old=inn_build('7701',random.Random(24),n)
-            new,_=anon('ИНН: '+old,'odd',seed=15)
+            new,_=anon('ИНН: '+old,seed=15)
             value=new.split()[-1]
             self.assertNotEqual(value,old)
             self.assertTrue(inn_ok(value))
@@ -31,10 +31,12 @@ class TestPDN(unittest.TestCase):
         v=snils_build(random.Random(5))
         self.assertTrue(snils_ok(v))
         self.assertEqual([e.label for e in recognize('СНИЛС: '+v)],['SNILS'])
-    def test_ogrnip(self):
-        v=ogrnip_build('32677',random.Random(5))
-        self.assertTrue(ogrnip_ok(v))
-        self.assertEqual([e.label for e in recognize('ОГРНИП: '+v,'even')],['OGRNIP'])
+    def test_marriage_certificate(self):
+        value='II-МЮ № 345678'
+        self.assertEqual([e.label for e in recognize('Свидетельство о браке: '+value)],['MARRIAGE_CERT'])
+        result,_=anon('Свидетельство о браке: '+value,seed=15)
+        self.assertTrue(result.startswith('Свидетельство о браке: II-МЮ № '))
+        self.assertNotIn(value,result)
     def test_female_sasha_gender_from_adjacent_surname(self):
         text='Гражданка Иванова Саша представила документы.'
         a=Anonymizer(seed=11)
@@ -58,13 +60,13 @@ class TestPDN(unittest.TestCase):
         alternative,_=Anonymizer(seed=500).anonymize(text)
         self.assertNotEqual(once,alternative)
     def test_priority_and_disjointness(self):
-        text='Заявитель: Иванов Антон. E-mail: anton.ivanov@example.ru. IP: 192.168.1.10.'
-        entities=recognize(text,'even')
-        self.assertEqual({e.label for e in entities},{'SURNAME','NAME','EMAIL','IP'})
+        text='Заявитель: Иванов Антон. Сайт: https://example.ru/client/15. Телефон: +7 (916) 123-45-67.'
+        entities=recognize(text)
+        self.assertEqual({e.label for e in entities},{'SURNAME','NAME','URL','PHONE'})
         for i,x in enumerate(entities):
             for y in entities[i+1:]: self.assertFalse(x.start<y.end and y.start<x.end)
-    def test_no_invalid_ip(self):
-        self.assertEqual(recognize('IP: 999.999.999.999','even'),[])
+    def test_no_invalid_snils(self):
+        self.assertEqual(recognize('СНИЛС: 999-999-999 99'),[])
     def test_mask_length(self):
         txt='Гражданин Иванов Пётр.'
         m=mask(txt,recognize(txt))

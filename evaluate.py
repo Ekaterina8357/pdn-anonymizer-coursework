@@ -9,7 +9,7 @@ import hashlib
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
-from pdn import recognize,bio_tags,Anonymizer,mask,mask_all_text,ALL,ODD,EVEN,Entity
+from pdn import recognize,bio_tags,Anonymizer,mask,mask_all_text,ODD,Entity
 
 ROOT=Path(__file__).resolve().parent
 
@@ -18,28 +18,27 @@ def cls(tag): return tag[2:] if tag!='O' else 'O'
 def run_dataset(dataset=None):
     dataset=Path(dataset or ROOT/'data/test.jsonl')
     rows=[json.loads(x) for x in dataset.read_text(encoding='utf-8').splitlines() if x.strip()]
-    conf=Counter(); conf_by_variant={'odd':Counter(),'even':Counter()}
+    conf=Counter()
     all_true=[];all_pred=[]
     samples=[]
     for r in rows:
         gold=[Entity(**e) for e in r['entities']]
-        found=recognize(r['text'],r['variant'])
+        found=recognize(r['text'])
         g=bio_tags(r['text'],gold);p=bio_tags(r['text'],found)
         assert len(g)==len(p)
         assert all(x['start']==y['start'] and x['end']==y['end'] for x,y in zip(g,p))
         for x,y in zip(g,p):
             a,b=cls(x['tag']),cls(y['tag'])
             conf[(a,b)]+=1
-            conf_by_variant[r['variant']][(a,b)]+=1
             all_true.append(x['tag']);all_pred.append(y['tag'])
         stable_seed=int.from_bytes(hashlib.sha256(r['id'].encode('utf-8')).digest()[:8],'big')
-        anon,_=Anonymizer(r['variant'],seed=stable_seed).anonymize(r['text'])
+        anon,_=Anonymizer(seed=stable_seed).anonymize(r['text'])
         masked=mask(r['text'],gold)
-        samples.append({'id':r['id'],'variant':r['variant'],'source':r['text'],
+        samples.append({'id':r['id'],'source':r['text'],
                         'synonym':anon,'masked':masked,
                         'masked_full':mask_all_text(r['text'])})
     report=[]
-    for label in ALL:
+    for label in ODD:
         tp=conf[(label,label)]
         fn=sum(v for (g,p),v in conf.items() if g==label and p!=label)
         fp=sum(v for (g,p),v in conf.items() if p==label and g!=label)
@@ -63,21 +62,7 @@ def run_dataset(dataset=None):
     source_synonym_ratio=sum(SequenceMatcher(None,x['source'],x['synonym']).ratio() for x in samples)/len(samples)
     source_mask_ratio=sum(SequenceMatcher(None,x['source'],x['masked']).ratio() for x in samples)/len(samples)
     source_mask_full_ratio=sum(SequenceMatcher(None,x['source'],x['masked_full']).ratio() for x in samples)/len(samples)
-    variant_summary={}
-    for variant,counts in conf_by_variant.items():
-        class_set=ODD if variant=='odd' else EVEN
-        scores=[]
-        for label in class_set:
-            tp=counts[(label,label)]
-            ntrue=sum(n for (g,p),n in counts.items() if g==label)
-            npred=sum(n for (g,p),n in counts.items() if p==label)
-            scores.append((2*tp/(ntrue+npred) if ntrue+npred else 0.0,ntrue))
-        variant_summary[variant]={
-            'texts':sum(r['variant']==variant for r in rows),
-            'weighted_f1_non_o':round(sum(f*n for f,n in scores)/sum(n for _,n in scores),5),
-            'macro_f1_non_o':round(sum(f for f,_ in scores)/len(scores),5),
-        }
-    result={'by_variant':variant_summary,
+    result={'variant':15,
             'mean_character_similarity_synonym':round(source_synonym_ratio,5),
             'mean_character_similarity_mask':round(source_mask_ratio,5),
             'mean_character_similarity_mask_full':round(source_mask_full_ratio,5),
