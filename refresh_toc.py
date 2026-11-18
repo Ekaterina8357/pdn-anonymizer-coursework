@@ -1,7 +1,8 @@
-"""Update the static contents page numbers from a rendered report PDF."""
+"""Определение номеров страниц разделов и подразделов для поля оглавления Word."""
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,20 +24,42 @@ KEY_PREFIXES = {
     'ПРИЛОЖЕНИЕ Б': 'ПРИЛОЖЕНИЕ Б',
     'ПРИЛОЖЕНИЕ В': 'ПРИЛОЖЕНИЕ В',
 }
+SUBSECTIONS = {
+    '1.1','1.2','1.3','2.1','2.2','2.3',
+    '3.1','3.2','3.3','3.4','3.5','3.6',
+    '4.1','4.2','4.3','5.1','5.2','5.3',
+    '6.1','6.2','6.3',
+}
 
 
 def refresh(pdf_path: Path, toc_json: Path) -> dict:
     locations={}
+    body_started=False
     with fitz.open(pdf_path) as document:
         for i,page in enumerate(document):
-            if i==0 or i==2:  # cover and contents; contents repeats all headings
+            if i==0:
                 continue
             lines=[x.strip() for x in page.get_text().splitlines() if x.strip()]
-            start=' '.join(x for x in lines[:4] if not x.isdigit())
+            content_lines=[line for line in lines if not line.isdigit()]
+            start=' '.join(content_lines[:4])
+            if i==1:
+                locations['РЕФЕРАТ']=i+1
+                continue
+            # В оглавлении заголовки перечислены повторно. Их нельзя
+            # принимать за реальные положения подразделов на страницах.
+            if not body_started:
+                if not content_lines or content_lines[0].upper() != 'ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ':
+                    continue
+                body_started=True
             for key,prefix in KEY_PREFIXES.items():
                 if key not in locations and prefix.casefold() in start.casefold():
                     locations[key]=i+1
+            for line in content_lines:
+                m=re.match(r'^(\d+\.\d+)\s+[А-ЯЁ]',line)
+                if m and m.group(1) in SUBSECTIONS and m.group(1) not in locations:
+                    locations[m.group(1)]=i+1
     missing=set(KEY_PREFIXES)-set(locations)
+    missing.update(SUBSECTIONS-set(locations))
     if missing: raise RuntimeError(f'TOC headings not found: {sorted(missing)}')
     toc_json.write_text(json.dumps(locations,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     return locations
