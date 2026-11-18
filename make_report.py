@@ -1,7 +1,5 @@
 """Создание редактируемого отчёта ГОСТ 7.32-2017; TOC pages can be passed in json."""
 import json
-import hashlib
-import re
 import sys
 import matplotlib
 matplotlib.use('Agg')
@@ -29,7 +27,7 @@ def fmt_bert(label):
     if bertscore is None:return 'Не рассчитан'
     return f"{bertscore[label]['f1']:.5f}"
 
-plt.rcParams.update({'font.family':'Liberation Serif','font.size':9})
+plt.rcParams.update({'font.family':'DejaVu Sans','font.size':9})
 order=['SURNAME','NAME','INN','PASSPORT','CARD','SNILS','URL','PHONE','MARRIAGE_CERT','CADASTRAL']
 vals=[dataset['entities_by_label'][x] for x in order]
 fig,ax=plt.subplots(figsize=(10.3,4.2))
@@ -66,38 +64,17 @@ normal=D.styles['Normal'];normal.font.name='Times New Roman';normal.font.size=Pt
 normal.paragraph_format.first_line_indent=Cm(1.25);normal.paragraph_format.line_spacing=1.5
 normal.paragraph_format.space_after=Pt(0);normal.paragraph_format.space_before=Pt(0)
 normal.paragraph_format.alignment=WD_ALIGN_PARAGRAPH.JUSTIFY
-# Собственные стили разделов с уровнем структуры «Основной текст».
-# Это убирает кнопки сворачивания в Word. Автоматическое оглавление
-# собирается по именам стилей командой TOC \t.
-def body_outline(style):
-    ppr=style.element.get_or_add_pPr()
-    lvl=ppr.find(qn('w:outlineLvl'))
-    if lvl is None:
-        lvl=OxmlElement('w:outlineLvl');ppr.append(lvl)
-    lvl.set(qn('w:val'),'9')
-
-for style_name,align,indent,before,after in [
-    ('CourseSection',WD_ALIGN_PARAGRAPH.LEFT,1.25,14,10),
-    ('CourseSubsection',WD_ALIGN_PARAGRAPH.LEFT,1.25,14,10),
-    ('CourseStructural',WD_ALIGN_PARAGRAPH.CENTER,0,0,16),
-    ('CourseContentsTitle',WD_ALIGN_PARAGRAPH.CENTER,0,0,16),
-]:
-    style=D.styles.add_style(style_name,WD_STYLE_TYPE.PARAGRAPH)
-    style.base_style=normal
-    style.font.name='Times New Roman';style.font.bold=True
-    style.font.size=Pt(14);style.font.color.rgb=RGBColor(0,0,0)
-    pf=style.paragraph_format;pf.first_line_indent=Cm(indent);pf.alignment=align
-    pf.line_spacing=1.5;pf.space_before=Pt(before);pf.space_after=Pt(after)
-    pf.keep_with_next=True
-    body_outline(style)
-
-for name,size,indent in [('CourseTOC1',12,0),('CourseTOC2',11.5,0.8)]:
-    style=D.styles.add_style(name,WD_STYLE_TYPE.PARAGRAPH)
-    style.base_style=normal;style.font.name='Times New Roman'
-    style.font.size=Pt(size);style.font.color.rgb=RGBColor(0,0,0)
-    pf=style.paragraph_format;pf.first_line_indent=Cm(0);pf.left_indent=Cm(indent)
-    pf.line_spacing=1.05;pf.space_after=Pt(2);pf.space_before=Pt(0)
-    body_outline(style)
+# headings
+for nm,sz,align in [('Title',16,WD_ALIGN_PARAGRAPH.CENTER),('Heading 1',14,WD_ALIGN_PARAGRAPH.LEFT),('Heading 2',14,WD_ALIGN_PARAGRAPH.LEFT)]:
+    style=D.styles[nm];style.font.name='Times New Roman';style.font.size=Pt(sz);style.font.bold=True;style.font.color.rgb=RGBColor(0,0,0)
+    pf=style.paragraph_format;pf.line_spacing=1.5;pf.space_before=Pt(14);pf.space_after=Pt(10);pf.keep_with_next=True
+    pf.first_line_indent=Cm(0 if nm=='Title' else 1.25)
+    pf.alignment=align
+new_style=D.styles.add_style('Structural',WD_STYLE_TYPE.PARAGRAPH);new_style.base_style=normal
+new_style.font.name='Times New Roman';new_style.font.bold=True;new_style.font.size=Pt(14)
+new_style.paragraph_format.first_line_indent=Cm(0);new_style.paragraph_format.alignment=WD_ALIGN_PARAGRAPH.CENTER
+new_style.paragraph_format.space_after=Pt(16);new_style.paragraph_format.space_before=Pt(0)
+new_style.paragraph_format.keep_with_next=True
 
 # page field
 p=sec.footer.paragraphs[0];p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -121,80 +98,23 @@ def rich(pieces,indent=True):
     return p
 
 
-_bookmark_counter=0
-def bookmark_name(title):
-    return 'section_'+hashlib.sha1(title.encode('utf-8')).hexdigest()[:14]
-
-
-def bookmark_heading(paragraph):
-    global _bookmark_counter
-    _bookmark_counter+=1
-    b=OxmlElement('w:bookmarkStart')
-    b.set(qn('w:id'),str(_bookmark_counter))
-    b.set(qn('w:name'),bookmark_name(paragraph.text))
-    e=OxmlElement('w:bookmarkEnd')
-    e.set(qn('w:id'),str(_bookmark_counter))
-    first=1 if len(paragraph._p) and paragraph._p[0].tag==qn('w:pPr') else 0
-    paragraph._p.insert(first,b)
-    paragraph._p.append(e)
-
-
 def st(title,page_break=True):
     if title[0].isdigit():
-        p=D.add_paragraph(title,style='CourseSection')
+        p=D.add_paragraph(title,style='Heading 1')
     else:
-        p=D.add_paragraph(title.upper(),style='CourseContentsTitle' if title.lower()=='содержание' else 'CourseStructural')
+        p=D.add_paragraph(title.upper(),style='Structural')
     if page_break:p.paragraph_format.page_break_before=True
-    if title.lower()!='содержание': bookmark_heading(p)
     return p
 
 
 def heading(num,title):
-    p=D.add_paragraph(f'{num} {title}',style='CourseSubsection');bookmark_heading(p);return p
+    p=D.add_paragraph(f'{num} {title}',style='Heading 1');return p
 
 
 def sub(num,title):
-    p=D.add_paragraph(f'{num} {title}',style='CourseSubsection')
+    p=D.add_paragraph(f'{num} {title}',style='Heading 2')
     if num=='4.3':p.paragraph_format.page_break_before=True
-    bookmark_heading(p)
     return p
-
-
-def add_toc_hyperlink(paragraph,title):
-    link=OxmlElement('w:hyperlink')
-    link.set(qn('w:anchor'),bookmark_name(title))
-    link.set(qn('w:history'),'1')
-    r=OxmlElement('w:r');props=OxmlElement('w:rPr')
-    fonts=OxmlElement('w:rFonts')
-    for attr in ('ascii','hAnsi','eastAsia','cs'):
-        fonts.set(qn('w:'+attr),'Times New Roman')
-    props.append(fonts)
-    color=OxmlElement('w:color');color.set(qn('w:val'),'000000');props.append(color)
-    r.append(props)
-    t=OxmlElement('w:t');t.text=title;r.append(t)
-    link.append(r);paragraph._p.append(link)
-
-
-def add_toc_field_begin(paragraph):
-    r=paragraph.add_run()
-    begin=OxmlElement('w:fldChar');begin.set(qn('w:fldCharType'),'begin');begin.set(qn('w:dirty'),'true')
-    instr=OxmlElement('w:instrText');instr.set(qn('xml:space'),'preserve')
-    instr.text=' TOC \\h \\z \\t "CourseStructural,1,CourseSection,1,CourseSubsection,2" '
-    sep=OxmlElement('w:fldChar');sep.set(qn('w:fldCharType'),'separate')
-    for node in (begin,instr,sep):r._r.append(node)
-
-
-def add_toc_field_end(paragraph):
-    r=paragraph.add_run()
-    end=OxmlElement('w:fldChar');end.set(qn('w:fldCharType'),'end')
-    r._r.append(end)
-
-
-def page_for_toc(key):
-    if key in PAGE:return PAGE[key]
-    m=re.match(r'^(\d+)(?:\.\d+)?\s',key)
-    if m:return PAGE.get(key.split()[0],PAGE.get(m.group(1),'—'))
-    return '—'
 
 
 def table(headers,rows,widths=None):
@@ -238,28 +158,26 @@ def code_lines(lines):
     for text in lines.splitlines():
         p=D.add_paragraph();p.paragraph_format.first_line_indent=Cm(0)
         p.paragraph_format.line_spacing=1;p.paragraph_format.space_after=Pt(0)
-        r=p.add_run(text or ' ');r.font.name='Times New Roman';r.font.size=Pt(9)
+        r=p.add_run(text or ' ');r.font.name='Liberation Mono';r.font.size=Pt(9)
 
-# ---- Титульный лист по образцу ----
-p=para('НАЦИОНАЛЬНЫЙ ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ',WD_ALIGN_PARAGRAPH.CENTER,False)
-p=para('МОСКОВСКИЙ ЭНЕРГЕТИЧЕСКИЙ ИНСТИТУТ НИУ «МЭИ»',WD_ALIGN_PARAGRAPH.CENTER,False)
-p=para('(ФГБОУ ВО «НИУ МЭИ»)',WD_ALIGN_PARAGRAPH.CENTER,False)
-p=para('Институт информационных и вычислительных технологий',WD_ALIGN_PARAGRAPH.CENTER,False)
-p=para('Кафедра вычислительных машин, систем и сетей',WD_ALIGN_PARAGRAPH.CENTER,False)
+# ---- Cover page ----
+p=para('Национальный исследовательский университет «МЭИ»',WD_ALIGN_PARAGRAPH.CENTER,False)
+p=para('Факультет / институт: ________________________________________',WD_ALIGN_PARAGRAPH.CENTER,False)
+p=para('Кафедра: ___________________________________________________',WD_ALIGN_PARAGRAPH.CENTER,False)
 for _ in range(5):para(' ',indent=False)
 p=para('КУРСОВАЯ РАБОТА',WD_ALIGN_PARAGRAPH.CENTER,False)
 for r in p.runs:r.bold=True;r.font.size=Pt(16)
-p=para('по дисциплине «Цифровые технологии защиты информации»',WD_ALIGN_PARAGRAPH.CENTER,False)
+p=para('по дисциплине «__________________________________»',WD_ALIGN_PARAGRAPH.CENTER,False)
 p=para('на тему:',WD_ALIGN_PARAGRAPH.CENTER,False)
 p=para('«Разработка программной системы распознавания и\nсинонимического обезличивания персональных данных»',WD_ALIGN_PARAGRAPH.CENTER,False)
 for r in p.runs:r.bold=True
-for _ in range(5):para(' ',indent=False)
-para('Выполнила: Искрина Е. А.',WD_ALIGN_PARAGRAPH.RIGHT,False)
-para('Группа: А-04м-26',WD_ALIGN_PARAGRAPH.RIGHT,False)
-para('Вариант: № 15',WD_ALIGN_PARAGRAPH.RIGHT,False)
+para('(язык программирования — Python)',WD_ALIGN_PARAGRAPH.CENTER,False)
+for _ in range(4):para(' ',indent=False)
+para('Выполнила: студентка Искрина Е. А.',WD_ALIGN_PARAGRAPH.RIGHT,False)
+para('Группа А-04м-26   Вариант № 15 (нечётный)',WD_ALIGN_PARAGRAPH.RIGHT,False)
 para('Проверил: Бабак Никита, к. т. н.',WD_ALIGN_PARAGRAPH.RIGHT,False)
 for _ in range(5):para(' ',indent=False)
-para('Москва, 2026 г.',WD_ALIGN_PARAGRAPH.CENTER,False)
+para('Москва — 2026',WD_ALIGN_PARAGRAPH.CENTER,False)
 
 # ---- Referat ----
 st('Реферат')
@@ -275,49 +193,21 @@ else:
 # ---- TOC ----
 st('Содержание')
 CONTENTS=[
- ('РЕФЕРАТ','РЕФЕРАТ',1),
- ('ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ','ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ',1),
- ('ВВЕДЕНИЕ','ВВЕДЕНИЕ',1),
- ('1 Теоретические основы распознавания и обезличивания ПДн','1 ТЕОРЕТИЧЕСКИЕ ОСНОВЫ',1),
- ('1.1 Постановка задачи и свойства обезличивания','1.1',2),
- ('1.2 Сравнение подходов к распознаванию','1.2',2),
- ('1.3 Принципы валидного извлечения идентификаторов','1.3',2),
- ('2 Формирование и разметка корпуса','2 ФОРМИРОВАНИЕ И РАЗМЕТКА',1),
- ('2.1 Источники и состав данных','2.1',2),
- ('2.2 Принцип эталонной BIO-разметки','2.2',2),
- ('2.3 Воспроизводимость и ограничение репрезентативности','2.3',2),
- ('3 Архитектура и реализация программного решения','3 АРХИТЕКТУРА И РЕАЛИЗАЦИЯ',1),
- ('3.1 Схема обработки текста','3.1',2),
- ('3.2 Проверка контрольных разрядов','3.2',2),
- ('3.3 Обработка именованных текстовых сущностей','3.3',2),
- ('3.4 Сохранение формата и косвенных признаков','3.4',2),
- ('3.5 Случайность, согласованность и идемпотентность','3.5',2),
- ('3.6 Интерфейс и пример использования','3.6',2),
- ('4 Методика экспериментального исследования','4 МЕТОДИКА ЭКСПЕРИМЕНТА',1),
- ('4.1 Расчёт метрик классификации токенов','4.1',2),
- ('4.2 Результаты распознавания','4.2',2),
- ('4.3 Модульные испытания и граничные случаи','4.3',2),
- ('5 Оценка сохранения семантики','5 ОЦЕНКА СОХРАНЕНИЯ СЕМАНТИКИ',1),
- ('5.1 Программа сравнительного эксперимента','5.1',2),
- ('5.2 Измеренные вспомогательные показатели','5.2',2),
- ('5.3 Запуск BERTScore и границы выводов','5.3',2),
- ('6 Ограничения и направления развития','6 ОГРАНИЧЕНИЯ И НАПРАВЛЕНИЯ РАЗВИТИЯ',1),
- ('6.1 Методические и программные ограничения','6.1',2),
- ('6.2 Конфиденциальность и безопасность','6.2',2),
- ('6.3 Направления дальнейших исследований','6.3',2),
- ('ЗАКЛЮЧЕНИЕ','ЗАКЛЮЧЕНИЕ',1),
- ('СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ','СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ',1),
- ('ПРИЛОЖЕНИЕ А','ПРИЛОЖЕНИЕ А',1),
- ('ПРИЛОЖЕНИЕ Б','ПРИЛОЖЕНИЕ Б',1),
- ('ПРИЛОЖЕНИЕ В','ПРИЛОЖЕНИЕ В',1),
-]
-for index,(name,key,level) in enumerate(CONTENTS):
-    p=D.add_paragraph(style='CourseTOC1' if level==1 else 'CourseTOC2')
-    p.paragraph_format.tab_stops.add_tab_stop(Cm(15.8),2,1)  # правый край, точки
-    if index==0:add_toc_field_begin(p)
-    add_toc_hyperlink(p,name)
-    p.add_run('\t'+str(page_for_toc(key)))
-    if index==len(CONTENTS)-1:add_toc_field_end(p)
+ ('РЕФЕРАТ', 'РЕФЕРАТ'),('ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ','ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ'),
+ ('ВВЕДЕНИЕ','ВВЕДЕНИЕ'),('1 Теоретические основы распознавания и обезличивания ПДн','1 ТЕОРЕТИЧЕСКИЕ ОСНОВЫ'),
+ ('2 Формирование и разметка корпуса','2 ФОРМИРОВАНИЕ И РАЗМЕТКА'),
+ ('3 Архитектура и реализация программного решения','3 АРХИТЕКТУРА И РЕАЛИЗАЦИЯ'),
+ ('4 Методика экспериментального исследования','4 МЕТОДИКА ЭКСПЕРИМЕНТА'),
+ ('5 Оценка сохранения семантики','5 ОЦЕНКА СОХРАНЕНИЯ СЕМАНТИКИ'),
+ ('6 Ограничения и направления развития','6 ОГРАНИЧЕНИЯ И НАПРАВЛЕНИЯ РАЗВИТИЯ'),
+ ('ЗАКЛЮЧЕНИЕ','ЗАКЛЮЧЕНИЕ'),('СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ','СПИСОК ИСПОЛЬЗОВАННЫХ ИСТОЧНИКОВ'),
+ ('ПРИЛОЖЕНИЕ А Примеры работы интерфейса','ПРИЛОЖЕНИЕ А'),
+ ('ПРИЛОЖЕНИЕ Б Состав программного проекта','ПРИЛОЖЕНИЕ Б'),
+ ('ПРИЛОЖЕНИЕ В Протокол проверки','ПРИЛОЖЕНИЕ В')]
+for name,key in CONTENTS:
+    p=D.add_paragraph(style='Normal');p.paragraph_format.first_line_indent=Cm(0)
+    p.paragraph_format.tab_stops.add_tab_stop(Cm(15.7), 2, 1)  # RIGHT + DOTS
+    p.add_run(name+'\t'+str(PAGE.get(key,'—')))
 
 # ---- Abbreviations ----
 st('Перечень сокращений и обозначений')
@@ -502,14 +392,15 @@ para('Работа демонстрирует реализуемость про�
 # ---- references ----
 st('Список использованных источников')
 refs=[
-'ГОСТ 7.32–2017. Отчёт о научно-исследовательской работе. Структура и правила оформления. — Текст: электронный. — URL: https://iriran.ru/sites/default/files/gost_7.32-2017.pdf (дата обращения: 18.11.2026).',
-'Федеральный закон от 27.07.2006 № 152-ФЗ «О персональных данных». — Текст: электронный. — URL: https://mintrud.gov.ru/docs/laws/130 (дата обращения: 18.11.2026).',
-'Тестирование систем выделения именованных сущностей и фактов для русского языка: материалы соревнования «Диалог», 2016. — Текст: электронный. — URL: https://dialogue-conf.org/media/3478/dialogue2016.pdf (дата обращения: 18.11.2026).',
-'Бручес Е. П., Батурова Д. Т., Бондаренко И. Ю. BERTScore для русского языка // Труды Института системного программирования РАН. — 2025. — Т. 37, № 3. — С. 147–158. — DOI: 10.15514/ISPRAS-2025-37(3)-10.',
-'Приказ Роскомнадзора от 19.06.2025 № 140 «Об утверждении требований к обезличиванию персональных данных и методов обезличивания персональных данных». — Текст: электронный. — URL: https://www.garant.ru/products/ipo/prime/doc/412328220/ (дата обращения: 18.11.2026).',
-'Постановление Правительства РФ от 01.08.2025 № 1154 «Об утверждении требований к обезличиванию персональных данных, методов обезличивания персональных данных и Правил обезличивания персональных данных». — Текст: электронный. — URL: https://base.garant.ru/412443296/ (дата обращения: 18.11.2026).',
-'Распознавание именованных сущностей: подход на основе вики-ресурсов // Институт системного программирования РАН. — 2016. — Текст: электронный. — URL: https://www.ispras.ru/publications/2016/named_entity_recognition_in_russian_the_power_of_wiki_based_approach/ (дата обращения: 18.11.2026).',
-'Алгоритм Луна: проверка номера карты и контрольной цифры. — Текст: электронный. — URL: https://toolfox.ru/tools/luhn-algorithm (дата обращения: 18.11.2026).'
+'ГОСТ 7.32–2017. Система стандартов по информации, библиотечному и издательскому делу. Отчёт о научно-исследовательской работе. Структура и правила оформления. URL: https://normadocs.ru/gost_7.32-2017 (дата обращения: 20.10.2026).',
+'Федеральный закон от 27.07.2006 № 152-ФЗ «О персональных данных». Официальная публикация Минтруда России. URL: https://mintrud.gov.ru/docs/laws/130 (дата обращения: 20.10.2026).',
+'FactRuEval-2016: corpus and evaluation materials. URL: https://github.com/dialogue-evaluation/factRuEval-2016 (дата обращения: 20.10.2026).',
+'Zhang T., Kishore V., Wu F., Weinberger K. Q., Artzi Y. BERTScore: Evaluating Text Generation with BERT // ICLR. 2020. URL: https://openreview.net/forum?id=SkeHuCVFDr (дата обращения: 20.10.2026).',
+'BERTScore: repository and documentation. URL: https://github.com/Tiiiger/bert_score (дата обращения: 20.10.2026).',
+'Python Software Foundation. re — Regular expression operations. URL: https://docs.python.org/3/library/re.html (дата обращения: 20.10.2026).',
+'Python Software Foundation. secrets — Generate secure random numbers. URL: https://docs.python.org/3/library/secrets.html (дата обращения: 20.10.2026).',
+'scikit-learn. Classification metrics: precision, recall, F-score. URL: https://scikit-learn.org/stable/modules/model_evaluation.html (дата обращения: 20.10.2026).',
+'Алгоритм Луна: ISO/IEC 7812-1:2017. Identification cards — Identification of issuers — Part 1: Numbering system.'
 ]
 for i,r in enumerate(refs,1):
     p=para(f'{i}. {r}',indent=False)
@@ -554,23 +445,6 @@ D.core_properties.title='Курсовая работа. Распознавани
 D.core_properties.subject='Python, BIO, F1, ГОСТ 7.32-2017'
 D.core_properties.author='Искрина Е. А.'
 D.core_properties.keywords='ПДн, Python, BIO, F1, BERTScore'
-for style in D.styles:
-    if style.type==WD_STYLE_TYPE.PARAGRAPH:
-        style.font.name='Times New Roman'
-for p in D.paragraphs:
-    for run in p.runs:run.font.name='Times New Roman'
-for tbl in D.tables:
-    for row in tbl.rows:
-        for cell in row.cells:
-            for p in cell.paragraphs:
-                for run in p.runs:run.font.name='Times New Roman'
-for section in D.sections:
-    for p in section.footer.paragraphs:
-        for run in p.runs:run.font.name='Times New Roman'
-update=D.settings.element.find(qn('w:updateFields'))
-if update is None:
-    update=OxmlElement('w:updateFields');D.settings.element.append(update)
-update.set(qn('w:val'),'true')
 OUT.parent.mkdir(exist_ok=True,parents=True)
 D.save(OUT)
 print(OUT)
