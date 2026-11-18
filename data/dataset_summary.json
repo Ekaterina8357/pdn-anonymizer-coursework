@@ -1,0 +1,28 @@
+{
+  "texts": 300,
+  "texts_by_variant": {
+    "odd": 150,
+    "even": 150
+  },
+  "entities_by_label": {
+    "BIRTH_CERT": 93,
+    "CADASTRAL": 93,
+    "CARD": 188,
+    "EMAIL": 94,
+    "INN": 188,
+    "IP": 94,
+    "KLADR": 93,
+    "MARRIAGE_CERT": 93,
+    "NAME": 300,
+    "OGRNIP": 94,
+    "PASSPORT": 188,
+    "PHONE": 94,
+    "SNILS": 94,
+    "SURNAME": 300,
+    "URL": 94
+  },
+  "total_entities": 2100,
+  "source": "самостоятельно составленный синтетический корпус",
+  "seed": 20261020,
+  "type": "test-only (правила не обучаются на тестовой выборке)"
+}

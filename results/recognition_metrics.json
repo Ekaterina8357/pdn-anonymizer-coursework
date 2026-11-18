@@ -1,0 +1,177 @@
+{
+  "by_variant": {
+    "odd": {
+      "texts": 150,
+      "weighted_f1_non_o": 1.0,
+      "macro_f1_non_o": 1.0
+    },
+    "even": {
+      "texts": 150,
+      "weighted_f1_non_o": 1.0,
+      "macro_f1_non_o": 1.0
+    }
+  },
+  "mean_character_similarity_synonym": 0.77367,
+  "mean_character_similarity_mask": 0.60762,
+  "mean_character_similarity_mask_full": 0.0,
+  "note_character_similarity": "Коэффициент SequenceMatcher — не BERTScore и не оценка семантики",
+  "texts": 300,
+  "tokens_total": 18380,
+  "labels_evaluated": 15,
+  "weighted_f1_non_o": 1.0,
+  "macro_f1_non_o": 1.0,
+  "weighted_bio_f1_non_o": 1.0,
+  "per_label": [
+    {
+      "label": "SURNAME",
+      "support_tokens": 300,
+      "tp": 300,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "NAME",
+      "support_tokens": 300,
+      "tp": 300,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "INN",
+      "support_tokens": 188,
+      "tp": 188,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "PASSPORT",
+      "support_tokens": 564,
+      "tp": 564,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "CARD",
+      "support_tokens": 752,
+      "tp": 752,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "SNILS",
+      "support_tokens": 564,
+      "tp": 564,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "URL",
+      "support_tokens": 1222,
+      "tp": 1222,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "PHONE",
+      "support_tokens": 940,
+      "tp": 940,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "MARRIAGE_CERT",
+      "support_tokens": 465,
+      "tp": 465,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "CADASTRAL",
+      "support_tokens": 651,
+      "tp": 651,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "OGRNIP",
+      "support_tokens": 94,
+      "tp": 94,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "IP",
+      "support_tokens": 658,
+      "tp": 658,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "EMAIL",
+      "support_tokens": 470,
+      "tp": 470,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "BIRTH_CERT",
+      "support_tokens": 465,
+      "tp": 465,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "label": "KLADR",
+      "support_tokens": 93,
+      "tp": 93,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  ],
+  "evaluation_note": "Только синтетические тексты, близкие к шаблонам правила; перенос на реальные документы не доказан"
+}
